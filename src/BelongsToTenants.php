@@ -26,7 +26,16 @@ trait BelongsToTenants
         static::$landlord = app(TenantManager::class);
 
         // Add a global scope for each tenant this model should be scoped by.
-        static::$landlord->applyTenantScopes(new static());
+        // In Laravel 13+, calling new static() while the model is being booted
+        // throws a LogicException. We defer the call to after boot completes when
+        // we detect we are currently inside the boot cycle.
+        if (isset(static::$booting[static::class])) {
+            static::whenBooted(function () {
+                static::$landlord->applyTenantScopes(new static());
+            });
+        } else {
+            static::$landlord->applyTenantScopes(new static());
+        }
 
         // Add tenantColumns automatically when creating models
         static::creating(function (Model $model) {
